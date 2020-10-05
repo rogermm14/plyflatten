@@ -29,6 +29,7 @@ struct accumulator_image {
 	float *cnt;
 	float *avg;
 	float *std;
+	float *cnt_std;
 	int w, h;
 };
 
@@ -97,7 +98,8 @@ void rasterize_cloud(
 	x->max = xmalloc(xsize*ysize*sizeof(float));
 	x->cnt = xmalloc(xsize*ysize*sizeof(float));
 	x->avg = output_buffer;
-	x->std = output_buffer_std;
+	x->std = xmalloc(xsize*ysize*nb_extra_columns*sizeof(float));
+	x->cnt_std = output_buffer_std;
 
 
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
@@ -142,21 +144,31 @@ void rasterize_cloud(
 
 	// set unknown values to NAN
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
-		if (!x->cnt[i])
-		for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
-			x->avg[nb_extra_columns*i+j] = NAN;
-		if (x->cnt[i]<2) {
-			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
+		x->cnt_std[(nb_extra_columns+1)*i+nb_extra_columns] = x->cnt[i];
+		if (!x->cnt[i]) {
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++) {
+				x->avg[nb_extra_columns*i+j] = NAN;
 				x->std[nb_extra_columns*i+j] = NAN;
+				x->cnt_std[(nb_extra_columns+1)*i+j] = x->std[nb_extra_columns*i+j];
+			}
+		}
+		else if (x->cnt[i]<2) {
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++) {
+				x->std[nb_extra_columns*i+j] = NAN;
+				x->cnt_std[(nb_extra_columns+1)*i+j] = x->std[nb_extra_columns*i+j];
+			}
 		}
 		else {
 			// so far x->std contains E[x^2] and x->avg contains E[x]
 			// the standard deviation is then computed std = sqrt(E[x^2] - E[x]^2)
-			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++) {
 				x->std[nb_extra_columns*i+j] = sqrt( x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2) );
+				x->cnt_std[(nb_extra_columns+1)*i+j] = x->std[nb_extra_columns*i+j];
+			}
 		}
 	}
 
+	free(x->std);
 	free(x->min);
 	free(x->max);
 	free(x->cnt);

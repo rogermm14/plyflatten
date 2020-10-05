@@ -42,11 +42,14 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
     nb_points, nb_extra_columns = cloud.shape[0], cloud.shape[1] - 2
     raster_shape = (xsize * ysize, nb_extra_columns)
 
+    # raster_shape_std has an extra layer accounting for the counts in each grid point
+    raster_shape_std = (xsize * ysize, 1 + nb_extra_columns)
+
     # Set expected args and return types
     lib.rasterize_cloud.argtypes = (
         ndpointer(dtype=ctypes.c_double, shape=np.shape(cloud)),
         ndpointer(dtype=ctypes.c_float, shape=raster_shape),
-        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape_std),
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_double,
@@ -60,7 +63,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
 
     # Call rasterize_cloud function from libplyflatten.so
     raster = np.zeros(raster_shape, dtype="float32")
-    raster_std = np.zeros(raster_shape, dtype="float32")
+    raster_std = np.zeros(raster_shape_std, dtype="float32")
     lib.rasterize_cloud(
         np.ascontiguousarray(cloud.astype(np.float64)),
         raster,
@@ -79,7 +82,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
     # Transform result into a numpy array
     raster = raster.reshape((ysize, xsize, nb_extra_columns))
     if std:
-        raster_std = raster_std.reshape((ysize, xsize, nb_extra_columns))
+        raster_std = raster_std.reshape((ysize, xsize, 1 + nb_extra_columns))
         raster = np.dstack((raster, raster_std))
 
     return raster

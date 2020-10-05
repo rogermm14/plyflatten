@@ -12,6 +12,7 @@ def main():
     parser.add_argument("list_plys", nargs="+", help=("Space-separated list of .ply files"))
     parser.add_argument("dsm_path", help=("Path to output DSM file"))
     parser.add_argument("--std", help=("Path to (optional) output standard deviation map"))
+    parser.add_argument("--cnt", help=("Path to (optional) output counts per grid point map"))
     parser.add_argument(
         "--resolution",
         default=1,
@@ -20,7 +21,7 @@ def main():
     )
     args = parser.parse_args()
     raster, profile = plyflatten_from_plyfiles_list(
-        args.list_plys, args.resolution, std=args.std is not None
+        args.list_plys, args.resolution, std=args.std is not None or args.cnt is not None
     )
     profile["dtype"] = raster.dtype
     profile["height"] = raster.shape[0]
@@ -31,7 +32,12 @@ def main():
     with rasterio.open(args.dsm_path, "w", **profile) as f:
         f.write(raster[:, :, 0], 1)
 
+    if args.cnt:
+        with rasterio.open(args.cnt, "w", **profile) as f:
+            f.write(raster[:, :, -1], 1)
+
     if args.std:
+        raster = raster[:, :, :-1]
         n = raster.shape[2]
         assert n % 2 == 0
         with rasterio.open(args.std, "w", **profile) as f:
